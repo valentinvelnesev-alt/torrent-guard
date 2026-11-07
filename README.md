@@ -10,6 +10,14 @@ Remnawave/Xray. Работает локально, без токена, внеш
 в ядре. На Ubuntu/Debian команды `iptables` и `ip6tables` входят в пакет
 `iptables`. Для установки с автозапуском требуется systemd.
 
+Для установки с автозапуском одной командой понадобится `curl`.
+
+```bash
+sudo bash -c 'set -e; installer=$(mktemp); trap "rm -f -- \"$installer\"" EXIT; curl -fsSL --proto "=https" --proto-redir "=https" -o "$installer" https://raw.githubusercontent.com/valentinvelnesev-alt/torrent-guard/main/guard.sh; bash "$installer" install'
+```
+
+Чтобы сначала применить правила временно, скачай репозиторий.
+
 ```bash
 git clone https://github.com/valentinvelnesev-alt/torrent-guard.git
 cd torrent-guard
