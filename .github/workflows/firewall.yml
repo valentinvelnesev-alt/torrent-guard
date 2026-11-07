@@ -1,0 +1,36 @@
+name: Firewall test
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  packets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check syntax
+        run: bash -n guard.sh
+      - name: Test IPv4 and IPv6 in an isolated network namespace
+        run: |
+          sudo modprobe xt_string
+          sudo unshare --net bash -eu <<'TEST'
+          ip link set lo up
+          iptables -N UNRELATED
+          iptables -A OUTPUT -j UNRELATED
+          python3 tests/packets.py
+          bash guard.sh apply
+          bash guard.sh apply
+          bash guard.sh status
+          for firewall in iptables ip6tables; do
+            test "$("$firewall" -S OUTPUT | grep -c -- '-j TORRENT_GUARD$')" -eq 1
+            test "$("$firewall" -S FORWARD | grep -c -- '-j TORRENT_GUARD$')" -eq 1
+            test "$("$firewall" -S TORRENT_GUARD | grep -c -- '^-A TORRENT_GUARD ')" -eq 4
+          done
+          iptables -C OUTPUT -j UNRELATED
+          python3 tests/packets.py --blocked
+          bash guard.sh remove
+          bash guard.sh remove
+          iptables -C OUTPUT -j UNRELATED
+          python3 tests/packets.py
+          TEST
