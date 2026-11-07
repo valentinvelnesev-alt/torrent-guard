@@ -6,18 +6,6 @@
   <strong>Локальный фильтр открытого BitTorrent-трафика для Linux и VPN-нод.</strong>
 </p>
 
-<p align="center">
-  <sub>IPv4 и IPv6&nbsp; · &nbsp;iptables&nbsp; · &nbsp;Без токенов и телеметрии</sub>
-</p>
-
-<p align="center">
-  <a href="#установка">Установка</a>
-  &nbsp;·&nbsp;
-  <a href="#управление">Управление</a>
-  &nbsp;·&nbsp;
-  <a href="#фильтрация">Фильтрация</a>
-</p>
-
 ## Установка
 
 Одна команда для установки с автозапуском на Linux с systemd.
