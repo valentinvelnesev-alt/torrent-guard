@@ -19,7 +19,11 @@ def test_udp(family, address, payload, blocked):
     with socket.socket(family, socket.SOCK_DGRAM) as receiver:
         receiver.bind((address, 0))
         with socket.socket(family, socket.SOCK_DGRAM) as sender:
-            sender.sendto(payload, receiver.getsockname())
+            try:
+                sender.sendto(payload, receiver.getsockname())
+            except PermissionError:
+                if not blocked:
+                    raise
         expect_payload(receiver, payload, blocked)
 
 
@@ -42,6 +46,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--blocked", action="store_true")
 args = parser.parse_args()
 handshake = b"\x13BitTorrent protocol" + bytes(48)
+http_tracker = b"GET /announce?info_hash=abc&peer_id=def HTTP/1.1\r\n\r\n"
 tracker = struct.pack("!QII", 0x41727101980, 0, 1)
 dht = b"d1:ad2:id20:" + b"a" * 20 + b"9:info_hash20:" + b"b" * 20 + b"e1:q9:get_peers1:t2:aa1:y1:qe"
 
@@ -49,6 +54,8 @@ for family, address in ((socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1"))
     test_tcp(family, address, b"ordinary TCP request", False)
     test_udp(family, address, b"ordinary UDP request", False)
     test_udp(family, address, b"1:q9:get_peers", False)
+    test_tcp(family, address, b"GET /?info_hash=abc HTTP/1.1\r\n\r\n", False)
     test_tcp(family, address, handshake, args.blocked)
+    test_tcp(family, address, http_tracker, args.blocked)
     test_udp(family, address, tracker, args.blocked)
     test_udp(family, address, dht, args.blocked)

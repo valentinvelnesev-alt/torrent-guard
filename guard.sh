@@ -6,7 +6,7 @@ chain=TORRENT_GUARD
 binary=/usr/local/sbin/torrent-guard
 unit=torrent-guard.service
 unit_file=/etc/systemd/system/$unit
-hooks=(OUTPUT FORWARD)
+hooks=(INPUT OUTPUT FORWARD)
 families=(iptables ip6tables)
 
 usage() {
@@ -25,7 +25,7 @@ if (( $# != 1 || EUID != 0 )); then
 fi
 
 write_rules() {
-    local firewall=$1 operation=$2 rules hook
+    local firewall=$1 operation=$2 rules hook rule query
     rules=$("$firewall" -w -S) || return
     printf '*filter\n'
     if [[ $operation == apply ]]; then
@@ -44,21 +44,26 @@ write_rules() {
     done
 
     if [[ $operation == apply ]]; then
+        printf -- '-A %s -m connbytes --connbytes 8193: --connbytes-dir both --connbytes-mode bytes -j RETURN\n' "$chain"
         # BEP 3 peer handshake, including its one-byte protocol name length.
         printf -- '-A %s -p tcp -m string --algo kmp --to 256 --hex-string "|13|BitTorrent protocol" -j DROP\n' "$chain"
         # BEP 15 UDP tracker connect request: protocol ID and connect action.
         printf -- '-A %s -p udp -m string --algo kmp --to 128 --hex-string "|000004172710198000000000|" -j DROP\n' "$chain"
-        # BEP 5 DHT get_peers and announce_peer queries.
-        for query in '1:q9:get_peers' '1:q13:announce_peer'; do
-            printf -- '-A %s -p udp -m string --algo kmp --to 256 --string "%s" -m string --algo kmp --to 256 --string "9:info_hash20:" -j DROP\n' "$chain" "$query"
+        # Require both tracker query keys in a plaintext HTTP GET.
+        printf -- '-A %s -p tcp -m string --algo kmp --to 256 --string "GET " -m string --algo kmp --to 768 --string "info_hash=" -m string --algo kmp --to 768 --string "peer_id=" -j DROP\n' "$chain"
+        # BEP 5 DHT queries carry a 20-byte node ID.
+        for query in '1:q9:get_peers' '1:q13:announce_peer' '1:q9:find_node' '1:q4:ping'; do
+            printf -- '-A %s -p udp -m string --algo kmp --to 256 --string "%s" -m string --algo kmp --to 256 --string "2:id20:" -j DROP\n' "$chain" "$query"
         done
+        # BEP 14 Local Service Discovery.
+        printf -- '-A %s -p udp --dport 6771 -m string --algo kmp --to 128 --string "BT-SEARCH * HTTP/1.1" -j DROP\n' "$chain"
     elif grep -Fxq -- "-N $chain" <<< "$rules"; then
         printf -- '-F %s\n-X %s\n' "$chain" "$chain"
     fi
     printf 'COMMIT\n'
 }
 
-update_rules() {
+update_rules() (
     local operation=$1 firewall work
     exec 9>/run/lock/torrent-guard.lock
     flock -x 9
@@ -71,9 +76,7 @@ update_rules() {
     for firewall in "${families[@]}"; do
         "${firewall}-restore" -w --noflush < "$work/$firewall"
     done
-    rm -rf -- "$work"
-    trap - EXIT
-}
+)
 
 show_status() {
     local firewall hook failed=0
