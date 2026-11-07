@@ -10,7 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Check syntax
-        run: bash -n guard.sh
+        run: |
+          bash -n guard.sh
+          sh -n install.sh
       - name: Test IPv4 and IPv6 in an isolated network namespace
         run: |
           sudo modprobe xt_string
