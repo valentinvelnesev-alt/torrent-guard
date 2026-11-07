@@ -1,22 +1,39 @@
-# Torrent Guard
+<p align="center">
+  <img src="./assets/torrent-guard-banner.jpg" alt="Torrent Guard от Reactus для Linux и Remnawave" width="1600">
+</p>
 
-Фильтр открытого BitTorrent-трафика для Linux-серверов и VPN-нод, в том числе
-Remnawave/Xray. Работает локально, без токена, внешнего API, телеметрии и
-автоматической загрузки обновлений.
+<p align="center">
+  <strong>Локальный фильтр открытого BitTorrent-трафика для Linux и VPN-нод.</strong>
+</p>
+
+<p align="center">
+  <sub>IPv4 и IPv6&nbsp; · &nbsp;iptables&nbsp; · &nbsp;Без токенов и телеметрии</sub>
+</p>
+
+<p align="center">
+  <a href="#установка">Установка</a>
+  &nbsp;·&nbsp;
+  <a href="#управление">Управление</a>
+  &nbsp;·&nbsp;
+  <a href="#фильтрация">Фильтрация</a>
+</p>
 
 ## Установка
 
-Понадобятся Bash, `flock`, `iptables`, `ip6tables` и поддержка модулей `xt_string` и `xt_connbytes`
-в ядре. На Ubuntu/Debian команды `iptables` и `ip6tables` входят в пакет
-`iptables`. Для установки с автозапуском требуется systemd.
-
-Для установки с автозапуском одной командой понадобится `curl`.
+Одна команда для установки с автозапуском на Linux с systemd.
 
 ```bash
 curl -fsSL https://github.com/valentinvelnesev-alt/torrent-guard/raw/main/install.sh | sudo sh
 ```
 
-Чтобы сначала применить правила временно, скачай репозиторий.
+После установки проверь правила и счётчики командой `sudo torrent-guard status`.
+
+<details>
+<summary>Требования и временный запуск</summary>
+
+Понадобятся Bash, `curl`, `flock`, `iptables`, `ip6tables` и модули ядра `xt_string` и `xt_connbytes`. В Ubuntu и Debian обе команды iptables входят в пакет `iptables`.
+
+Чтобы проверить работу фильтра до включения автозапуска, скачай репозиторий.
 
 ```bash
 git clone https://github.com/valentinvelnesev-alt/torrent-guard.git
@@ -25,45 +42,36 @@ sudo bash guard.sh apply
 sudo bash guard.sh status
 ```
 
-`apply` применяет правила до перезагрузки. Проверь доступ по SSH и работу VPN,
-затем включи автозапуск.
+Временные правила действуют до перезагрузки или выполнения `sudo bash guard.sh remove`. Проверь SSH и VPN, затем включи автозапуск командой `sudo bash guard.sh install`.
 
-```bash
-sudo bash guard.sh install
-```
+</details>
 
 ## Управление
 
-```bash
-# Посмотреть правила и счётчики отброшенных пакетов
-sudo torrent-guard status
+| Команда | Действие |
+| --- | --- |
+| `sudo torrent-guard status` | Показать правила и счётчики отброшенных пакетов |
+| `sudo torrent-guard apply` | Восстановить правила после перезагрузки конфигурации firewall |
+| `sudo torrent-guard remove` | Снять правила до следующего запуска сервиса или перезагрузки |
+| `sudo torrent-guard uninstall` | Удалить фильтр и его автозапуск |
 
-# Восстановить правила после перезагрузки конфигурации firewall
-sudo torrent-guard apply
+## Фильтрация
 
-# Снять правила до следующего запуска сервиса или перезагрузки
-sudo torrent-guard remove
+Фильтр распознаёт TCP-рукопожатия BitTorrent, открытые HTTP-запросы к трекерам, запросы подключения к UDP-трекерам, DHT и локальное обнаружение пиров. Остальной трафик обрабатывают действующие правила firewall.
 
-# Удалить правила и автозапуск
-sudo torrent-guard uninstall
-```
+<details>
+<summary>Как устроен фильтр и где он ограничен</summary>
 
-До установки команды `status` и `remove` доступны через `sudo bash guard.sh`.
+Скрипт добавляет цепочку `TORRENT_GUARD` к `INPUT`, `OUTPUT` и `FORWARD` для IPv4 и IPv6. При наличии счётчиков conntrack он ищет сигнатуры в первых 8 КиБ трафика соединения суммарно в обоих направлениях. Для работы фильтра внешний API не нужен.
 
-## Что фильтруется
+Фильтр проверяет отдельные пакеты. Он может пропустить зашифрованный BitTorrent, HTTPS-трекеры, сигнатуры, разбитые по нескольким пакетам, и трафик внутри другого шифрованного туннеля.
 
-Скрипт добавляет свою цепочку `TORRENT_GUARD` к `INPUT`, `OUTPUT` и `FORWARD`
-для IPv4 и IPv6. Он ищет сигнатуры TCP-рукопожатия BitTorrent, открытых
-HTTP-запросов к трекеру, подключения к UDP-трекеру, запросов DHT и локального
-обнаружения пиров. Для соединений со счётчиками conntrack поиск ограничен
-первыми 8 КиБ трафика в обоих направлениях вместе. Остальной трафик проходит
-через текущие правила firewall.
+Форматы пакетов описаны в [BEP 3](https://www.bittorrent.org/beps/bep_0003.html), [BEP 5](https://www.bittorrent.org/beps/bep_0005.html), [BEP 14](https://www.bittorrent.org/beps/bep_0014.html) и [BEP 15](https://www.bittorrent.org/beps/bep_0015.html).
 
-Фильтр ищет сигнатуры в отдельных пакетах. Он может пропустить зашифрованный
-BitTorrent, HTTPS-трекеры, сигнатуры, разбитые по нескольким пакетам, и трафик,
-который выходит с сервера внутри другого шифрованного туннеля.
+</details>
 
-Форматы пакетов описаны в [BEP 3](https://www.bittorrent.org/beps/bep_0003.html),
-[BEP 5](https://www.bittorrent.org/beps/bep_0005.html),
-[BEP 14](https://www.bittorrent.org/beps/bep_0014.html) и
-[BEP 15](https://www.bittorrent.org/beps/bep_0015.html).
+---
+
+<p align="center">
+  Автор&nbsp;·&nbsp;<a href="https://reactus.club"><strong>Reactus</strong></a>
+</p>
